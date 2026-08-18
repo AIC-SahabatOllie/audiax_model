@@ -1,0 +1,6 @@
+/docs
+/Dataset
+/models
+
+*.pt
+*.md
