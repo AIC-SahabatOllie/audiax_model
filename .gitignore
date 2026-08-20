@@ -1,6 +1,7 @@
 /docs
 /Dataset
 /models
+/third_party
 
 *.pt
 *.md
