@@ -1,0 +1,40 @@
+# ============================================================
+# Audiax — requirements.txt (instalasi dev lengkap, satu file)
+# ============================================================
+# pip install -r requirements.txt
+
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+# --- Inti AI (ai/)
+torch==2.6.0+cu126
+torchaudio==2.6.0+cu126
+numpy==2.1.3
+scipy==1.14.1
+
+# --- Lapisan HTTP (service/)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- Evaluasi & eksperimen (experiments/)
+pandas==2.2.3
+scikit-learn==1.5.2
+matplotlib==3.9.2
+tabulate==0.9.0            # dipakai pandas.DataFrame.to_markdown() di notebook eksperimen
+soundfile==0.13.1          # baca audio di notebook (menghindari backend torchcodec)
+
+# --- Testing (tests/) ---
+pytest==8.3.4
+httpx==0.28.1               # dipakai fastapi.testclient.TestClient
+
+# --- Unduhan checkpoint (dipakai sel unduhan di kedua notebook) ---
+onedrivedownloader==1.1.3
+
+# --- Unduhan dataset dari Google Drive ---
+gdown==6.1.0
+
+# --- Notebook (menjalankan/mengedit .ipynb secara lokal, di luar Colab) ---
+jupyter==1.1.1
+notebook==7.3.2
+nbformat==5.10.4
+ipykernel==6.29.5
