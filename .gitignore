@@ -5,3 +5,5 @@
 
 *.pt
 *.md
+
+/tests/__pycache__
