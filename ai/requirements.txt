@@ -1,0 +1,11 @@
+# ============================================================
+# ai/ -- logika inti AUDIAX. NOL dependensi web (ditegakkan
+# tests/test_boundary.py). Dipakai stage builder di Dockerfile.
+# ============================================================
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+torch==2.6.0+cu126
+torchaudio==2.6.0+cu126      # resample; juga cadangan pembacaan audio
+numpy==2.1.3
+scipy==1.14.1                # filter Butterworth, STFT/ISTFT, median filter (HPSS), kurtosis
+soundfile==0.13.1            # pembaca audio utama (lebih tahan daripada backend torchcodec)
