@@ -16,11 +16,16 @@ class _FakeBaseline:
 
 
 class _FakeHealthCard:
-    status = "NORMAL"
-    z_score = 0.5
-    calibration_quality = "baik"
-    dominant_indicator = None
-    disclaimer = "Alat bantu triase, bukan diagnosis mengikat -- tetap perlu inspeksi teknisi."
+    def to_dict(self) -> dict:
+        return {
+            "status": "NORMAL",
+            "z_score": 0.5,
+            "health_score": 91.7,
+            "calibration_quality": "baik",
+            "dominant_indicator": None,
+            "disclaimer": "Alat bantu triase, bukan diagnosis mengikat -- tetap perlu inspeksi teknisi.",
+            "reason": None,
+        }
 
 
 @pytest.fixture(autouse=True)
@@ -87,7 +92,10 @@ def test_inspect_returns_health_card_contract(client):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body.keys() == {"status", "z_score", "calibration_quality", "dominant_indicator", "disclaimer"}
+    assert body.keys() == {
+        "status", "z_score", "health_score", "calibration_quality",
+        "dominant_indicator", "disclaimer", "reason",
+    }
     assert body["status"] == "NORMAL"
     assert body["disclaimer"]
 

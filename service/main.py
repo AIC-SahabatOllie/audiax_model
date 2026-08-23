@@ -66,10 +66,4 @@ def v1_inspect(audio: UploadFile = File(...), baseline_json: str = Form(...)) ->
     finally:
         Path(path).unlink(missing_ok=True)
 
-    return {
-        "status": card.status,
-        "z_score": card.z_score,
-        "calibration_quality": card.calibration_quality,
-        "dominant_indicator": card.dominant_indicator,
-        "disclaimer": card.disclaimer,
-    }
+    return card.to_dict()
