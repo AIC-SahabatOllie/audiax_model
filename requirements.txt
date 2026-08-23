@@ -5,11 +5,13 @@
 
 --extra-index-url https://download.pytorch.org/whl/cu126
 
-# --- Inti AI (ai/)
+# --- Inti AI (ai/)  -- lihat ai/requirements.txt
 torch==2.6.0+cu126
 torchaudio==2.6.0+cu126
 numpy==2.1.3
 scipy==1.14.1
+soundfile==0.13.1          # pembaca audio utama ai/preprocess.py (lebih tahan
+                           # daripada backend torchcodec); juga dipakai notebook
 
 # --- Lapisan HTTP (service/)
 fastapi==0.115.6
