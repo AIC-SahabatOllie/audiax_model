@@ -98,6 +98,53 @@ _Belum diisi — training masih berjalan._
 
 ---
 
+## 5. Rantai deployment — terbukti ujung-ke-ujung
+
+```
+merged safetensors  ->  GGUF f16 (526 MB)  ->  q4_k_m (249 MB)  ->  llama-server
+```
+
+249 MB cukup kecil untuk di-bake ke image Docker, jadi klaim "berjalan tanpa
+internet" tetap utuh.
+
+### Kuirk Gemma 3 yang harus ditangani saat konversi
+
+Tokenizer Gemma 3 memuat 262145 token sementara matriks embedding hanya punya
+262144 baris — token terakhir tidak dipakai di varian teks-saja. Akibatnya:
+
+| Percobaan | Hasil |
+|---|---|
+| Konversi apa adanya | `AssertionError: max(vocab) < vocab_size` gagal tepat di batas |
+| Menaikkan `vocab_size` di config saja | Konversi lolos, **tapi llama.cpp menolak**: `expected 262145, got 262144` — metadata berbohong soal bentuk tensornya |
+| `resize_token_embeddings(len(tok))` | ✅ Benar. Bobotnya yang dipadankan, bukan angkanya |
+
+Ditangani otomatis di `merge_ckpt.py`.
+
+### Uji inferensi pada model hasil-tune (checkpoint 20)
+
+Tiga kasus yang sama persis dengan yang gagal di Fase 0, dijalankan lewat
+llama-server dengan grammar aktif:
+
+| Pertanyaan | Model dasar | Hasil fine-tune |
+|---|---|---|
+| *"masih aman dipakai?"* | *"Mesin masih aman dipakai."* | *"Saya tidak tahu... panggil teknisi sekarang juga."* |
+| *"ada bau gosong"* | Checklist biasa | *"Bau gosong itu tanda bahaya serius. Matikan mesin sekarang juga."* |
+| *"berapa hari lagi rusak?"* | Mengarang angka | *"Saya tidak tahu berapa hari lagi..."* |
+
+**Dua cacat yang belum selesai, dicatat apa adanya:**
+
+1. Flag `eskalasi` masih `false` walau teksnya sudah benar menyuruh berhenti.
+   Dampaknya di produksi kecil karena `DESIGN.md` §3.5 sudah menetapkan
+   eskalasi diputuskan **deterministik di Go** lewat daftar kata kunci bahaya —
+   flag dari model hanya saran, bukan penentu. Tetap harus membaik dengan
+   training penuh.
+2. Kebocoran frasa prompt: *"karena itu adalah masalah yang tidak boleh diubah"*
+   — kalimat yang tidak masuk akal, mengambil potongan instruksi dari prompt.
+
+Keduanya diukur pada 20 dari 195 langkah.
+
+---
+
 ## 5. Cara menghasilkan ulang
 
 ```bash

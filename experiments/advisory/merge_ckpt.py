@@ -47,6 +47,17 @@ def main() -> int:
     model = PeftModel.from_pretrained(base, str(ck))
     merged = model.merge_and_unload()
 
+    # Gemma 3 mengirim tokenizer dengan 262145 token tapi matriks embedding
+    # 262144 baris -- token terakhir tidak dipakai di varian teks-saja. Konverter
+    # GGUF menolak selisih itu (`max(vocab) < vocab_size` gagal tepat di batas),
+    # dan menaikkan vocab_size di config saja justru membuat metadata berbohong:
+    # llama.cpp lalu menolak dengan "expected 262145, got 262144".
+    # Yang benar adalah memadankan bobotnya, bukan angkanya.
+    if merged.get_input_embeddings().weight.shape[0] < len(tok):
+        old = merged.get_input_embeddings().weight.shape[0]
+        merged.resize_token_embeddings(len(tok))
+        print(f"embedding {old} -> {len(tok)} agar cocok dengan tokenizer")
+
     out = HERE / args.out
     if out.exists():
         shutil.rmtree(out)
