@@ -17,7 +17,7 @@ lanjutan operator — tanpa pernah memutuskan apa pun dan tanpa pernah membuat a
 | 2 | Repo AI (`ai/`, `service/`) **tidak diubah sama sekali** | Batas arsitektur yang sudah ada tetap tegak |
 | 3 | Artefak training hidup di `audiax_model/experiments/advisory/` | `experiments/` sudah dikecualikan dari Docker. Repo model melatih, repo backend menyajikan. |
 | 4 | Model: Gemma hasil LoRA, dijalankan via container Ollama, GGUF **di-bake ke image** | Klausul rulebook "model wajib di-fine-tune"; sekaligus menjaga klaim `docker compose up` tanpa internet |
-| 5 | Ukuran base model **belum dikunci** — ditentukan Fase 0 | Tidak ada benchmark publik untuk kualitas Bahasa Indonesia maupun kecepatan CPU di ukuran ini |
+| 5 | Base model: **`gemma-3-270m-it`** (dikunci oleh Fase 0, lihat `results.md`) | 1B ditolak atas dasar terukur: p95 7,96 dtk vs 4,35 dtk. Fine-tuning tidak bisa memperbaiki kecepatan. Gemma 4 E2B gugur lebih awal — 4,3 GB tidak muat di batas `memory: 4G` |
 | 6 | LLM tidak pernah memutuskan. Rule engine yang memutuskan. | Keputusan harus deterministik dan bisa di-unit-test |
 | 7 | Guard output tetap aktif **walaupun** model sudah di-fine-tune | Fine-tune menurunkan pelanggaran; guard membuatnya nol |
 | 8 | Gagal guard ⇒ jatuh ke `StaticProvider`, bukan error | Fitur tidak pernah mati; degradasi jujur lewat field `source` |
