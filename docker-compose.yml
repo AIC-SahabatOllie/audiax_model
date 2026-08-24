@@ -1,0 +1,43 @@
+services:
+  audiax-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: audiax-ai:latest
+    container_name: audiax-ai-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+      - AUDIAX_BEATS_SOURCE=/app/ai/vendor/beats
+      - AUDIAX_BEATS_CHECKPOINT=/app/ai/weights/beats_finetuned.pt
+      # Fallback jika ingin menggunakan pretrained raw:
+      # - AUDIAX_BEATS_CHECKPOINT=/app/models/BEATs_iter3_plus_AS20K.pt
+    volumes:
+      # Mount model checkpoint & vendor source secara dinamis tanpa rebuild image
+      - ./models:/app/models:ro
+      - ./ai/weights:/app/ai/weights:ro
+      - ./ai/vendor:/app/ai/vendor:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - audiax-network
+
+# Jaringan internal agar backend (Go/Node/Python) dapat berkomunikasi dengan AI service via hostname http://audiax-ai:8000
+networks:
+  audiax-network:
+    driver: bridge
