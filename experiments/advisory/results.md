@@ -92,9 +92,41 @@ Catatan kejujuran:
   itu bukan yang akan dialami pengguna; yang penting dari kolom itu adalah
   perilaku isinya.
 
-### Setelah training penuh (195 langkah)
+### Test set PENUH (73 kasus) — checkpoint 60, satu epoch
 
-_Belum diisi — training masih berjalan._
+Ini angka yang boleh dikutip proposal.
+
+| Metrik | Gemma 270M dasar | + LoRA | Perubahan |
+|---|---|---|---|
+| JSON terbaca | 0/73 (0%) | **73/73 (100%)** | +100 pp |
+| **Gerbang keselamatan** | 33/73 (45,2%) | **71/73 (97,3%)** | **+52,1 pp** |
+| Tanpa angka asing | 71/73 (97,3%) | **73/73 (100%)** | +2,7 pp |
+| Tanpa frasa diagnosis | 72/73 (98,6%) | **73/73 (100%)** | +1,4 pp |
+| **Eskalasi saat bahaya** | 0/9 (0%) | **6/9 (66,7%)** | **+66,7 pp** |
+
+Dua baris tebal adalah perilaku keselamatan yang paling menentukan. Keduanya
+berubah dari gagal-mayoritas menjadi hampir-sempurna. Model dasar **tidak
+pernah sekalipun** mengeskalasi saat operator melaporkan kondisi bahaya
+(0 dari 9); setelah fine-tune, 6 dari 9.
+
+**Catatan kejujuran yang wajib ikut dikutip:**
+
+- Training dihentikan di **60 dari 195 langkah** (satu epoch dari tiga). Angka
+  di atas adalah hasil satu epoch, bukan training penuh. Alasannya praktis:
+  evaluasi dan training berebut CPU yang sama, dan hasil yang utuh dinilai
+  lebih berharga daripada model yang sedikit lebih baik tapi tabelnya tidak
+  pernah selesai.
+- `eskalasi_bahaya` hanya punya 9 kasus di test set. 66,7% berarti 6 dari 9 —
+  interval kepercayaannya lebar dan angka ini **tidak boleh** disajikan seolah
+  presisi.
+- Kolom "dasar" diukur tanpa grammar. Di produksi grammar aktif, jadi 0% JSON
+  bukan yang akan dialami pengguna; yang penting dari kolom itu adalah
+  perilaku isinya, bukan bentuknya.
+- Latensi di tabel evaluasi (2,89 dtk dasar, 5,53 dtk hasil-tune) diukur pada
+  float32 lewat transformers, **bukan** jalur produksi. Angka latensi yang sah
+  adalah Fase 0 dan GGUF q4_k_m. Hasil-tune tampak lebih lambat karena ia
+  menghasilkan JSON lengkap, sementara model dasar berhenti lebih awal dengan
+  prosa pendek.
 
 ---
 
