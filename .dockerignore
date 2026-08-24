@@ -1,0 +1,41 @@
+# ============================================================
+# .dockerignore — MLOps Best Practice (Lean Build Context)
+# ============================================================
+.git
+.gitignore
+.github
+.idea
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+
+# Experiments & Notebooks (Eksperimen tidak perlu masuk container produksi)
+experiments/
+*.ipynb
+*.ipynb_checkpoints
+
+# Datasets & Sample data
+Dataset/
+sample_dataset/
+*.wav
+*.mp3
+*.flac
+
+# Local Virtual Environments
+.venv/
+venv/
+env/
+
+# Tests & Docs
+tests/
+docs/
+
+# Temporary files
+tmp/
+temp/
+*.log
