@@ -13,7 +13,7 @@
 | `tests/` | ✅ boundary, pipeline, service routes |
 | Docker / demo | ✅ **Terbukti ujung-ke-ujung** (lihat §2) |
 | Distribusi checkpoint | ❌ **Belum** — satu-satunya penghalang demo tersisa |
-| Lapisan advisory (Teknisi Saku) | 🔄 Korpus & training jalan, gerbang go/no-go belum dilewati |
+| Lapisan advisory (Teknisi Saku) | ✅ **Gerbang lulus.** Model terlatih + artefak GGUF 249 MB siap |
 | Angka AUC dari notebook | ❌ Belum ada `experiments/results.md` |
 
 ---
@@ -102,26 +102,37 @@ Tiga niat penolakan (`bahaya`, `di_luar_cakupan`, `pancingan_angka`) awalnya
 hanya 10–15 kasus karena sampling proporsional justru menekan yang paling
 penting. Mode `--focus` menaikkannya ke 71–88.
 
-### Fase 3 — LoRA (BERJALAN)
+### Fase 3 — LoRA (dihentikan di 1 epoch, sengaja)
 
 r=16 pada 7 proyeksi, 3,8M dari 272M parameter (1,40%). CPU, 195 langkah,
 ~3,5 jam. Checkpoint tiap 20 langkah dengan resume otomatis.
 
-### Fase 5 — evaluasi (GERBANG LULUS)
+### Fase 5 — evaluasi (SELESAI, GERBANG LULUS)
 
-Diukur pada 30 kasus test set di checkpoint 20 dari 195 — belum genap
-sepertiga epoch pertama:
+Test set **penuh 73 kasus**, tidak pernah dilihat saat training:
 
-| Metrik | Dasar | + LoRA |
-|---|---|---|
-| JSON terbaca | 0/30 (0%) | 30/30 (100%) |
-| Gerbang keselamatan | 18/30 (60%) | 28/30 (93%) |
-| Tanpa angka asing | 30/30 (100%) | 30/30 (100%) |
-| Tanpa frasa diagnosis | 29/30 (97%) | 30/30 (100%) |
-| Eskalasi saat bahaya | 0/3 (0%) | 1/3 (33%) |
+| Metrik | Dasar | + LoRA | Perubahan |
+|---|---|---|---|
+| JSON terbaca | 0/73 (0%) | **73/73 (100%)** | +100 pp |
+| **Gerbang keselamatan** | 33/73 (45%) | **71/73 (97%)** | **+52 pp** |
+| Tanpa angka asing | 71/73 (97%) | **73/73 (100%)** | +3 pp |
+| Tanpa frasa diagnosis | 72/73 (99%) | **73/73 (100%)** | +1 pp |
+| **Eskalasi saat bahaya** | 0/9 (0%) | **6/9 (67%)** | **+67 pp** |
 
-**Go.** Angka final menyusul setelah 195 langkah. Detail dan catatan
-kejujurannya di `experiments/advisory/results.md`.
+Model dasar tidak pernah sekalipun mengeskalasi saat operator melaporkan bau
+gosong, asap, atau panas berlebih.
+
+Training **dihentikan di 60 dari 195 langkah** (satu epoch dari tiga):
+evaluasi dan training berebut CPU yang sama sehingga evaluasi melambat jadi
+57 dtk/kasus, dan job latar belakang berulang kali dihentikan. Checkpoint-60
+tersimpan dan resume otomatis sudah ada, jadi training bisa dilanjutkan kapan
+saja. Empat batasan angka ini ditulis eksplisit di `results.md`.
+
+### Artefak
+
+`experiments/advisory/dist/audiax-advisor-q4km.gguf` — 249 MB, dibangun dari
+checkpoint-60 yang persis dievaluasi. File `.gguf` tidak masuk git; resep
+lengkap ada di `dist/README.md`.
 
 ### Deployment (TERBUKTI)
 
