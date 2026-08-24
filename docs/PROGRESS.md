@@ -107,12 +107,35 @@ penting. Mode `--focus` menaikkannya ke 71–88.
 r=16 pada 7 proyeksi, 3,8M dari 272M parameter (1,40%). CPU, 195 langkah,
 ~3,5 jam. Checkpoint tiap 20 langkah dengan resume otomatis.
 
-### Fase 5 — evaluasi (SIAP)
+### Fase 5 — evaluasi (GERBANG LULUS)
 
-`eval_advisory.py` mengukur empat metrik pada test set: gerbang keselamatan,
-angka asing, frasa diagnosis, eskalasi bahaya. **Tabel sebelum-sesudah dari
-skrip ini adalah gerbang go/no-go.** Kalau tidak ada perbaikan berarti pada
-perilaku keselamatan, jalur ini dihentikan dan `static.go` yang dikirim.
+Diukur pada 30 kasus test set di checkpoint 20 dari 195 — belum genap
+sepertiga epoch pertama:
+
+| Metrik | Dasar | + LoRA |
+|---|---|---|
+| JSON terbaca | 0/30 (0%) | 30/30 (100%) |
+| Gerbang keselamatan | 18/30 (60%) | 28/30 (93%) |
+| Tanpa angka asing | 30/30 (100%) | 30/30 (100%) |
+| Tanpa frasa diagnosis | 29/30 (97%) | 30/30 (100%) |
+| Eskalasi saat bahaya | 0/3 (0%) | 1/3 (33%) |
+
+**Go.** Angka final menyusul setelah 195 langkah. Detail dan catatan
+kejujurannya di `experiments/advisory/results.md`.
+
+### Deployment (TERBUKTI)
+
+`merged safetensors -> GGUF f16 526 MB -> q4_k_m 249 MB -> llama-server ->
+jawaban benar`. Cukup kecil untuk di-bake ke image.
+
+Kuirk Gemma 3 yang harus ditangani: tokenizer 262145 token vs embedding 262144
+baris. Menaikkan `vocab_size` di config membuat konversi lolos tapi llama.cpp
+menolak — metadata jadi berbohong soal bentuk tensor. Yang benar
+`resize_token_embeddings()`, sudah otomatis di `merge_ckpt.py`.
+
+Dua cacat yang belum selesai: flag `eskalasi` belum ikut benar walau teksnya
+sudah benar (dampak produksi kecil — eskalasi diputuskan deterministik di Go),
+dan ada kebocoran frasa prompt ke jawaban.
 
 ---
 
