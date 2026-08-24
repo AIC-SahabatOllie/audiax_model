@@ -39,3 +39,9 @@ docs/
 tmp/
 temp/
 *.log
+
+# Salinan checkpoint yang tercecer di root repo (361 MB). Yang dipakai image
+# adalah ai/weights/beats_finetuned.pt; salinan root cuma memperlambat build
+# karena ikut dikirim ke daemon sebagai build context.
+# Pola ini TIDAK ber-anchor ganda, jadi ai/weights/*.pt tetap ikut ter-copy.
+beats_finetuned.pt

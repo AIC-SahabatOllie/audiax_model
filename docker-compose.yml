@@ -15,11 +15,21 @@ services:
       - AUDIAX_BEATS_CHECKPOINT=/app/ai/weights/beats_finetuned.pt
       # Fallback jika ingin menggunakan pretrained raw:
       # - AUDIAX_BEATS_CHECKPOINT=/app/models/BEATs_iter3_plus_AS20K.pt
-    volumes:
-      # Mount model checkpoint & vendor source secara dinamis tanpa rebuild image
-      - ./models:/app/models:ro
-      - ./ai/weights:/app/ai/weights:ro
-      - ./ai/vendor:/app/ai/vendor:ro
+    # TIDAK ADA VOLUME MOUNT UNTUK BOBOT/VENDOR -- disengaja.
+    #
+    # `COPY ai/ /app/ai/` di Dockerfile sudah mem-bake checkpoint dan vendor
+    # BEATs ke dalam image. Mount host di sini dulu MENUTUPI salinan bawaan itu,
+    # sehingga image yang sebenarnya mandiri jadi bergantung pada isi folder di
+    # mesin yang menjalankannya. Di mesin yang meng-clone repo bersih (juri),
+    # folder itu kosong: mount menang, checkpoint hilang, warm_up() gagal, dan
+    # /healthz balas 503 selamanya tanpa pesan yang bisa dimengerti.
+    #
+    # Dengan mount dihapus, `docker compose up` berjalan sepenuhnya dari isi
+    # image -- tanpa internet, tanpa file tambahan di host. Itulah klaim yang
+    # ditulis di proposal, dan sekarang klaim itu benar.
+    #
+    # Untuk mengganti checkpoint tanpa rebuild (khusus pengembangan), pakai
+    # `docker compose -f docker-compose.yml -f docker-compose.dev.yml up`.
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz || exit 1"]
       interval: 30s
