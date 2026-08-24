@@ -174,6 +174,7 @@ def run(name: str, path: str, rows: List[Dict[str, Any]]) -> Tuple[str, Dict[str
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--tuned", type=str, default="", help="path model hasil tune; default merged/")
     args = ap.parse_args()
 
     rows = [json.loads(l) for l in TEST.read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -182,7 +183,8 @@ def main() -> int:
     print(f"test set: {len(rows)} kasus (tak pernah dilihat saat training)")
 
     out: Dict[str, Any] = {}
-    for name, path in [("Gemma 270M dasar", BASE_MODEL), ("Gemma 270M + LoRA", str(OUT_MERGED))]:
+    tuned_path = args.tuned or str(OUT_MERGED)
+    for name, path in [("Gemma 270M dasar", BASE_MODEL), ("Gemma 270M + LoRA", tuned_path)]:
         if name.endswith("LoRA") and not Path(path).exists():
             print(f"\n{path} belum ada -- training belum selesai. Lewati.")
             continue
