@@ -12,10 +12,9 @@ services:
       - PORT=8000
       - PYTHONUNBUFFERED=1
       - AUDIAX_BEATS_SOURCE=/app/ai/vendor/beats
-      - AUDIAX_BEATS_CHECKPOINT=/app/models/BEATs_iter3_plus_AS20K.pt
-      # Jika menggunakan model fine-tuned MAC dari eksperimen notebook:
-      # - AUDIAX_BEATS_CHECKPOINT=/app/ai/weights/beats_finetuned.pt
-      # - AUDIAX_ADAPTER_CHECKPOINT=/app/ai/weights/adapter.pt
+      - AUDIAX_BEATS_CHECKPOINT=/app/ai/weights/beats_finetuned.pt
+      # Fallback jika ingin menggunakan pretrained raw:
+      # - AUDIAX_BEATS_CHECKPOINT=/app/models/BEATs_iter3_plus_AS20K.pt
     volumes:
       # Mount model checkpoint & vendor source secara dinamis tanpa rebuild image
       - ./models:/app/models:ro

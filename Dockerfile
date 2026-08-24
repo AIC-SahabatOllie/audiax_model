@@ -77,7 +77,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     PORT=8000 \
     AUDIAX_BEATS_SOURCE=/app/ai/vendor/beats \
-    AUDIAX_BEATS_CHECKPOINT=/app/models/BEATs_iter3_plus_AS20K.pt
+    AUDIAX_BEATS_CHECKPOINT=/app/ai/weights/beats_finetuned.pt
 
 # Expose HTTP API Port
 EXPOSE 8000
