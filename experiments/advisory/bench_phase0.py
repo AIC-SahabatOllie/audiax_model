@@ -29,7 +29,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
+# llama-server mengekspos endpoint bergaya OpenAI. Dipakai alih-alih Ollama
+# karena image Ollama 3,2 GB tidak selesai diunduh pada jaringan ini (~5 jam),
+# sementara binary llama.cpp CPU hanya 17 MB. Ollama memakai llama.cpp di
+# dalamnya, jadi angka yang diukur di sini tetap berlaku untuk deployment final.
+LLAMA_SERVER_URL = "http://localhost:8080/v1/chat/completions"
 
 #: Harus sama dengan batas ``cpus: '4.0'`` di docker-compose.yml. Mengukur dengan
 #: 12 thread akan memberi angka 2-3x lebih optimistis dari kondisi nyata.
@@ -213,26 +217,57 @@ SYSTEM_HINT = (
 )
 
 
-def call_ollama(model: str, prompt: str, timeout: float = 120.0) -> Optional[Dict[str, Any]]:
+#: Skema keluaran, ditegakkan sampler lewat grammar. Sama dengan DESIGN.md §3.3.
+ADVISORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "jawaban": {"type": "string"},
+        "langkah_berikutnya": {"type": "string"},
+        "perlu_teknisi": {"type": "boolean"},
+        "eskalasi": {"type": "boolean"},
+    },
+    "required": ["jawaban", "langkah_berikutnya", "perlu_teknisi", "eskalasi"],
+}
+
+
+def call_model(prompt: str, timeout: float = 300.0) -> Optional[Dict[str, Any]]:
+    """Satu panggilan ke llama-server, parameter identik dengan rencana produksi.
+
+    ``temperature=0`` + ``top_k=1`` + ``seed`` tetap adalah greedy decoding:
+    input yang sama harus menghasilkan output yang sama persis. Determinisme itu
+    salah satu metrik yang dilaporkan, jadi ia bagian dari yang diukur, bukan
+    sekadar preferensi.
+    """
     payload = {
-        "model": model,
         "messages": [
             {"role": "system", "content": SYSTEM_HINT},
             {"role": "user", "content": prompt},
         ],
         "stream": False,
-        "format": "json",
-        "options": {
-            "temperature": 0,
-            "top_k": 1,
-            "top_p": 1,
-            "seed": 42,
-            "num_predict": NUM_PREDICT,
-            "num_thread": NUM_THREAD,
+        "temperature": 0,
+        "top_k": 1,
+        "top_p": 1,
+        "seed": 42,
+        "max_tokens": NUM_PREDICT,
+        # Grammar GBNF, bukan sekadar minta "balas JSON" di prompt.
+        #
+        # Temuan Fase 0: tanpa ini, gemma-3-270m-it menghasilkan 0/10 JSON valid
+        # -- ia menulis "Jawaban: ..." sebagai prosa biasa. Dengan ini, struktur
+        # keluarannya DIJAMIN benar karena sampler tidak diizinkan mengeluarkan
+        # token yang melanggar skema.
+        #
+        # Konsekuensinya untuk desain: validitas JSON keluar dari daftar hal yang
+        # perlu dipelajari fine-tuning maupun diukur sebagai metrik. Yang tersisa
+        # untuk dipelajari hanya perilaku ISI -- jangan membantah keputusan,
+        # jangan mengarang, wajib eskalasi saat bahaya. Beban belajarnya menyempit
+        # jauh, dan itu membuat model kecil lebih layak dipertimbangkan.
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"schema": ADVISORY_SCHEMA},
         },
     }
     req = urllib.request.Request(
-        OLLAMA_URL,
+        LLAMA_SERVER_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
@@ -255,23 +290,23 @@ def bench_model(model: str, template: str) -> Dict[str, Any]:
     # operator pada permintaan kedua dan seterusnya, jadi tidak diikutkan.
     warm = render_prompt(template, CASES[0]["facts"])
     print("  memanaskan model...")
-    call_ollama(model, warm, timeout=300)
+    call_model(warm, timeout=300)
 
     for case in CASES:
         prompt = render_prompt(template, case["facts"])
         started = time.perf_counter()
-        resp = call_ollama(model, prompt)
+        resp = call_model(prompt)
         elapsed = time.perf_counter() - started
         if resp is None:
             continue
 
         latencies.append(elapsed)
-        eval_count = resp.get("eval_count") or 0
-        eval_dur_ns = resp.get("eval_duration") or 0
-        if eval_dur_ns:
-            tok_per_sec.append(eval_count / (eval_dur_ns / 1e9))
+        eval_count = (resp.get("usage") or {}).get("completion_tokens") or 0
+        if elapsed > 0 and eval_count:
+            tok_per_sec.append(eval_count / elapsed)
 
-        content = resp.get("message", {}).get("content", "")
+        choices = resp.get("choices") or [{}]
+        content = (choices[0].get("message") or {}).get("content", "")
         parsed: Any
         try:
             parsed = json.loads(content)
