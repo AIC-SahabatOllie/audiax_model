@@ -11,7 +11,9 @@
 # ratusan MB. Yang MASUK repo adalah korpus dan skripnya, bukan hasilnya.
 experiments/advisory/runs/
 experiments/advisory/adapter/
-experiments/advisory/merged/
+experiments/advisory/merged*/
+experiments/advisory/dist/
+experiments/advisory/eval_results.json
 experiments/advisory/*.log
 .hf_cache/
 *.gguf
