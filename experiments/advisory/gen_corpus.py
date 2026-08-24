@@ -29,6 +29,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+import threading
 from typing import Any, Dict, List, Optional, Tuple
 
 BACKEND = Path(r"C:\Code\audiax_backend\internal\advisory")
@@ -36,8 +37,39 @@ TABLE_PATH = BACKEND / "decision_table.json"
 TEMPLATE_PATH = BACKEND / "prompt_template.txt"
 OUT_DIR = Path(__file__).with_name("corpus")
 
-MODEL = "gemini-3.1-pro"
+# Teacher bertingkat. Tugas ini bukan penalaran berat -- ia mengikuti aturan
+# ketat dan menulis Indonesia yang wajar -- jadi Flash cukup untuk mayoritas,
+# dan pada 2.000 panggilan selisih kecepatannya berarti satu jam vs dua setengah.
+# Kasus yang salahnya paling mahal tetap dapat model terkuat.
+# Diukur terhadap kunci yang dipakai, bukan diasumsikan dari daftar model:
+#   gemini-3.1-pro-preview  -> 429, berbayar-saja, tidak tersedia di tier ini
+#   gemini-3.7-flash        -> 503, model sedang kelebihan beban
+#   gemini-3.6-flash        -> 200  <- dipakai
+#   gemini-3.5-flash        -> 200  <- cadangan saat 503
+# Rencana teacher bertingkat (Pro untuk kasus keselamatan) gugur karena Pro
+# tidak bisa diakses; kompensasinya ada di filter otomatis dan gerbang review.
+# Tier GRATIS. Tidak ada tagihan yang mungkin masuk: kuota habis menghasilkan
+# HTTP 429, bukan biaya. Model berbayar-saja (gemini-3.1-pro-preview) sengaja
+# tidak pernah dipanggil.
+#
+# flash-lite dipilih bukan cuma karena termurah, tapi karena rate limit tier
+# gratisnya paling longgar -- dan di sini yang mengikat adalah RPM, bukan uang.
+MODEL_DEFAULT = "gemini-3.5-flash-lite"
+# Diukur, bukan diasumsikan: 3.6-flash ter-throttle berat pada kunci ini dan
+# tiap panggilannya membakar retry backoff sampai ~190 detik. Karena teacher
+# bertingkat merutekan ~40% trafik ke sana (semua CRITICAL + 3 niat
+# keselamatan), batch 5 konteks pun tidak selesai dalam 5 menit.
+# flash-lite: 12/12 sukses, 51 panggilan/menit, nol 429. Dipakai untuk semua.
+MODEL_CRITICAL = "gemini-3.5-flash-lite"
+CRITICAL_INTENTS = {"bahaya", "pancingan_angka", "di_luar_cakupan"}
+
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={k}"
+
+
+def teacher_for(intent: str, status: str) -> str:
+    if intent in CRITICAL_INTENTS or status == "CRITICAL":
+        return MODEL_CRITICAL
+    return MODEL_DEFAULT
 
 # ---------------------------------------------------------------------------
 # Ruang konteks (CORPUS_SPEC §1)
@@ -239,7 +271,18 @@ def sample_contexts(n: int, rng: random.Random) -> List[Dict[str, Any]]:
     return out[:n]
 
 
-def pick_intents(rng: random.Random, k: int) -> List[str]:
+def pick_intents(rng: random.Random, k: int, focus: Optional[List[str]] = None) -> List[str]:
+    """Pilih niat menurut INTENT_MIX, atau merata atas ``focus`` kalau diberikan.
+
+    Mode fokus ada karena niat yang paling penting justru paling jarang muncul
+    di sampling proporsional: ``pancingan_angka`` dan ``di_luar_cakupan``
+    masing-masing hanya 9% dan 8%. Padahal itu dua perilaku penolakan yang
+    paling sering gagal di model dasar, dan CORPUS_SPEC mensyaratkan minimal 20
+    kasus per niat di test set. Menambah porsinya lewat batch terarah jauh lebih
+    murah daripada menggenerate ulang seluruh korpus.
+    """
+    if focus:
+        return [rng.choice(focus) for _ in range(k)]
     names = list(INTENT_MIX)
     weights = [INTENT_MIX[n] for n in names]
     return rng.choices(names, weights=weights, k=k)
@@ -257,7 +300,7 @@ ATURAN MUTLAK -- jawaban yang melanggar akan dibuang:
 1. JANGAN menyebut angka apa pun yang tidak ada di FAKTA atau KEPUTUSAN SISTEM. Tidak ada perkiraan hari, persentase, biaya, atau suhu.
 2. JANGAN menyebut jenis kerusakan. Bukan "bearing aus", bukan "impeler pecah". Sistem ini tidak bisa mendiagnosis; ia hanya mendeteksi bahwa suara bergeser dari kondisi sehat mesin itu sendiri.
 3. JANGAN mengubah status atau urgensi. Keduanya sudah diputuskan sistem. Kalau operator bertanya "masih aman dipakai?" sementara ada gerbang keselamatan, jawabannya TIDAK.
-4. Kalau KEPUTUSAN SISTEM punya gerbang_keselamatan, instruksi mematikan mesin WAJIB muncul sebelum instruksi memeriksa apa pun.
+4. Kalau KEPUTUSAN SISTEM punya gerbang_keselamatan, kata "matikan" WAJIB muncul di jawabanmu -- SELALU, tanpa kecuali. Ini berlaku untuk SETIAP pertanyaan, termasuk yang cuma menanyakan arti istilah atau hal yang tidak berhubungan. Alasannya: selama mesin berada di kondisi ini, operator tidak boleh membacanya tanpa diingatkan. Contoh benar untuk pertanyaan arti istilah: "Itu ukuran seberapa tajam puncak suara dibanding suara rata-ratanya. Tapi sebelum lanjut: matikan mesin dulu dan tunggu impeler berhenti total."
 5. Kalau operator menyebut bau gosong, asap, percikan, panas berlebih, atau getaran keras: suruh berhenti sekarang dan panggil teknisi. Abaikan checklist biasa. Set eskalasi=true dan perlu_teknisi=true.
 6. Kalau ditanya hal di luar kondisi mesin ini (harga, merek, resep, cari teknisi), akui tidak tahu dan arahkan ke orang yang tepat. Jangan mengarang.
 7. Kalau ditanya prediksi umur mesin, sisa hari, atau persentase akurasi: tolak. Jelaskan sistem hanya membandingkan suara terhadap kondisi sehat mesin itu sendiri, tidak memprediksi umur.
@@ -276,7 +319,8 @@ RESPONSE_SCHEMA = {
 }
 
 
-def call_gemini(api_key: str, prompt: str, intent: str, retries: int = 4) -> Optional[Dict[str, Any]]:
+def call_gemini(api_key: str, prompt: str, intent: str, model: str = MODEL_DEFAULT,
+                retries: int = 6) -> Optional[Dict[str, Any]]:
     body = {
         "systemInstruction": {"parts": [{"text": TEACHER_SYSTEM}]},
         "contents": [{"role": "user", "parts": [{"text": f"{prompt}\n\n[niat pertanyaan: {intent}]"}]}],
@@ -286,7 +330,7 @@ def call_gemini(api_key: str, prompt: str, intent: str, retries: int = 4) -> Opt
             "responseSchema": RESPONSE_SCHEMA,
         },
     }
-    url = API_URL.format(m=MODEL, k=api_key)
+    url = API_URL.format(m=model, k=api_key)
     for attempt in range(retries):
         req = urllib.request.Request(
             url, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"}
@@ -297,8 +341,13 @@ def call_gemini(api_key: str, prompt: str, intent: str, retries: int = 4) -> Opt
             txt = d["candidates"][0]["content"]["parts"][0]["text"]
             return json.loads(txt)
         except urllib.error.HTTPError as e:
+            if e.code == 503 and model != MODEL_CRITICAL:
+                # Model kelebihan beban: pindah ke cadangan, jangan cuma menunggu.
+                model = MODEL_CRITICAL
+                url = API_URL.format(m=model, k=api_key)
+                continue
             if e.code in (429, 500, 503):
-                time.sleep(2 ** attempt * 2)
+                time.sleep(2 ** attempt * 3)
                 continue
             print(f"    ! HTTP {e.code}: {e.read()[:200]!r}", file=sys.stderr)
             return None
@@ -400,6 +449,8 @@ def main() -> int:
     ap.add_argument("--contexts", type=int, default=600)
     ap.add_argument("--turns-per-context", type=int, default=3)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--focus", type=str, default="", help="niat yang difokuskan, dipisah koma")
+    ap.add_argument("--workers", type=int, default=3, help="konteks diproses paralel")
     ap.add_argument("--dry-run", action="store_true", help="jangan panggil API, cetak contoh prompt")
     args = ap.parse_args()
 
@@ -423,60 +474,113 @@ def main() -> int:
     dropped: Dict[str, int] = {}
     seen_intent: Dict[str, int] = {}
 
-    for ci, ctx in enumerate(contexts):
+    # Giliran DI DALAM satu konteks harus berurutan -- riwayat percakapan
+    # dibangun dari jawaban giliran sebelumnya. Antar-konteks tidak saling
+    # bergantung, jadi di situlah paralelismenya. Pada 600 konteks ini selisih
+    # sekitar satu jam versus sepuluh menit.
+    def run_context(item: Tuple[int, Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+        ci, ctx = item
+        got: List[Dict[str, Any]] = []
+        bad: List[str] = []
+        intents_done: List[str] = []
+
         cell = lookup(cells, ctx)
         if cell is None:
-            dropped["tidak ada sel cocok"] = dropped.get("tidak ada sel cocok", 0) + 1
-            continue
+            return got, ["tidak ada sel cocok"], intents_done
 
+        # RNG sendiri per konteks: rng bersama tidak thread-safe, dan yang lebih
+        # penting, hasilnya jadi tidak reproducible antar-jalan.
+        local = random.Random(args.seed * 1_000_003 + ci)
         history: List[Dict[str, str]] = []
-        for intent in pick_intents(rng, args.turns_per_context):
-            q = rng.choice(INTENT_QUESTIONS[intent])
+
+        focus = [x.strip() for x in args.focus.split(',') if x.strip()] or None
+        for intent in pick_intents(local, args.turns_per_context, focus):
+            q = local.choice(INTENT_QUESTIONS[intent])
             q = q.replace("{indicator}", INDICATOR_LABEL[ctx["dominant_indicator"]])
             q = q.replace("{z}", str(ctx["z"]))
-            facts = build_facts(ctx, cell, q, history)
-            prompt = render_prompt(template, facts)
+            prompt = render_prompt(template, build_facts(ctx, cell, q, history))
 
             if args.dry_run:
-                if ci == 0:
+                if ci == 0 and not intents_done:
                     print("\n--- CONTOH PROMPT ---\n" + prompt + "---\n")
-                seen_intent[intent] = seen_intent.get(intent, 0) + 1
+                intents_done.append(intent)
                 continue
 
-            ans = call_gemini(api_key, prompt, intent)
+            ans = call_gemini(api_key, prompt, intent, teacher_for(intent, ctx["status"]))
             if ans is None:
-                dropped["api gagal"] = dropped.get("api gagal", 0) + 1
+                bad.append("api gagal")
                 continue
             why = check(ans, ctx, cell, intent)
             if why:
-                dropped[why.split(":")[0]] = dropped.get(why.split(":")[0], 0) + 1
+                bad.append(why.split(":")[0])
                 continue
 
-            records.append({
-                "context_id": ci,
+            rec = {
+                # Diberi awalan seed karena korpus dibangun dari beberapa batch
+                # yang di-append ke raw.jsonl. Tanpa ini, konteks ke-3 dari batch
+                # A dan batch B dianggap konteks yang sama, dan pembagian
+                # train/test jadi bocor antar-batch.
+                "context_id": f"{args.seed}-{ci}",
                 "intent": intent,
                 "status": ctx["status"],
                 "prompt": prompt,
                 "completion": json.dumps(ans, ensure_ascii=False),
-            })
+            }
+            got.append(rec)
+            # Tulis SEGERA. Job 600 konteks berjalan ~20 menit dan sudah pernah
+            # dihentikan di tengah; tanpa ini seluruh kemajuan hangus. raw.jsonl
+            # adalah sumber kebenaran, train/val/test cuma turunannya.
+            with _raw_lock:
+                _raw_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                _raw_fh.flush()
             history = history + [
                 {"role": "user", "content": q},
                 {"role": "assistant", "content": ans["jawaban"]},
             ]
-            seen_intent[intent] = seen_intent.get(intent, 0) + 1
+            intents_done.append(intent)
 
-        if not args.dry_run and (ci + 1) % 25 == 0:
-            print(f"  {ci+1}/{len(contexts)} konteks | {len(records)} giliran lolos")
+        return got, bad, intents_done
+
+    OUT_DIR.mkdir(exist_ok=True)
+    raw_path = OUT_DIR / "raw.jsonl"
+    global _raw_fh, _raw_lock
+    _raw_lock = threading.Lock()
+    # Mode append: menjalankan ulang dengan --seed berbeda menambah korpus,
+    # tidak menimpanya.
+    _raw_fh = raw_path.open("a", encoding="utf-8")
+
+    items = list(enumerate(contexts))
+    if args.dry_run or args.workers <= 1:
+        results = [run_context(it) for it in items]
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            results = []
+            for i, res in enumerate(pool.map(run_context, items), 1):
+                results.append(res)
+                if i % 5 == 0 or i == len(items):
+                    kept = sum(len(r[0]) for r in results)
+                    print(f"  {i}/{len(items)} konteks | {kept} giliran lolos", flush=True)
+
+    for got, bad, intents_done in results:
+        records.extend(got)
+        for b in bad:
+            dropped[b] = dropped.get(b, 0) + 1
+        for it in intents_done:
+            seen_intent[it] = seen_intent.get(it, 0) + 1
 
     if args.dry_run:
         print("distribusi niat (dry run):", dict(sorted(seen_intent.items())))
         return 0
 
-    OUT_DIR.mkdir(exist_ok=True)
+    _raw_fh.close()
+    records = [json.loads(l) for l in raw_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    print(f"total record di raw.jsonl: {len(records)}")
+
     by_ctx: Dict[int, List[Dict[str, Any]]] = {}
     for r in records:
         by_ctx.setdefault(r["context_id"], []).append(r)
-    ids = sorted(by_ctx)
+    ids = sorted(by_ctx, key=str)
     rng.shuffle(ids)
     n = len(ids)
     splits = {
@@ -494,7 +598,7 @@ def main() -> int:
 
     (OUT_DIR / "meta.json").write_text(
         json.dumps({
-            "teacher_model": MODEL,
+            "teacher_model": {"default": MODEL_DEFAULT, "critical": MODEL_CRITICAL},
             "prompt_template_sha256": tpl_sha,
             "decision_table_sha256": tbl_sha,
             "n_contexts": len(contexts),

@@ -6,6 +6,17 @@
 # ter-bake ke image Docker saat build -- lihat README.
 *.pt
 
+# Artefak training lapisan advisory: bobot, checkpoint, dan cache model dasar.
+# Semuanya bisa dihasilkan ulang dari corpus/ + train_lora.py, dan ukurannya
+# ratusan MB. Yang MASUK repo adalah korpus dan skripnya, bukan hasilnya.
+experiments/advisory/runs/
+experiments/advisory/adapter/
+experiments/advisory/merged/
+experiments/advisory/*.log
+.hf_cache/
+*.gguf
+*.safetensors
+
 __pycache__/
 *.pyc
 .pytest_cache/

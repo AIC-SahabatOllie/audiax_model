@@ -1,0 +1,21 @@
+{
+  "teacher_model": {
+    "default": "gemini-3.5-flash-lite",
+    "critical": "gemini-3.5-flash-lite"
+  },
+  "prompt_template_sha256": "43341c24ac8a44f1c79ca8c7a37532f51a11453459a69098e77254502ddff58d",
+  "decision_table_sha256": "01ccc2213878a8fe12aeebfd83870ef785dc5be085c6924bcba3f99bbe91e4a0",
+  "n_contexts": 6,
+  "n_turns_kept": 18,
+  "dropped_by_reason": {},
+  "intent_counts": {
+    "teknisi_biaya": 2,
+    "bahaya": 2,
+    "observasi_baru": 4,
+    "lanjutan": 4,
+    "di_luar_cakupan": 2,
+    "boleh_jalan": 2,
+    "istilah": 2
+  },
+  "seed": 42
+}
