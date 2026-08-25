@@ -26,14 +26,28 @@ Skrip ini menyiapkan dua aset yang **tidak ada di dalam repo**:
 
 Skrip **exit non-zero** kalau ada yang belum lengkap, jadi aman dipakai di CI.
 
-Checkpoint diunduh dari URL yang kamu setel sendiri:
+Checkpoint diunduh otomatis dari GitHub Release repo ini — **tidak perlu
+konfigurasi apa pun**:
 
 ```bash
-export AUDIAX_CHECKPOINT_URL=https://github.com/<org>/<repo>/releases/download/<tag>/beats_finetuned.pt
 python scripts/download_assets.py
 ```
 
-Atau salin manual file `.pt` ke `ai/weights/beats_finetuned.pt`.
+Sumbernya [`v0.1.0-weights`](https://github.com/AIC-SahabatOllie/audiax_model/releases/tag/v0.1.0-weights)
+(344,8 MiB, sha256 `e3feaefb...ae509`). Skrip memverifikasi ukuran minimum, jadi
+unduhan terputus atau halaman error yang tersimpan sebagai `.pt` ketahuan
+sekarang, bukan sebagai crash saat memuat bobot.
+
+Kalau perlu sumber lain — mirror internal, hasil training sendiri — timpa lewat
+environment variable:
+
+```bash
+export AUDIAX_CHECKPOINT_URL=https://.../beats_finetuned.pt
+python scripts/download_assets.py
+```
+
+Atau salin manual file `.pt` ke `ai/weights/beats_finetuned.pt` (nama file harus
+persis).
 
 ---
 

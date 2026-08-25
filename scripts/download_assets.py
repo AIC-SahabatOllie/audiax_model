@@ -19,8 +19,10 @@ saat demo.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -37,11 +39,25 @@ BEATS_FILES = {
     "modules.py": "https://raw.githubusercontent.com/microsoft/unilm/master/beats/modules.py",
 }
 
-#: URL checkpoint hasil training tim. Tidak di-hardcode karena setiap tim
-#: meng-host-nya sendiri (GitHub Release, Hugging Face, atau storage lain).
-#: Setel sebelum menjalankan skrip:
-#:     export AUDIAX_CHECKPOINT_URL=https://github.com/<org>/<repo>/releases/download/<tag>/beats_finetuned.pt
+#: URL checkpoint hasil training tim, di-host sebagai aset GitHub Release pada
+#: repo yang sama. Sengaja dijadikan default alih-alih wajib disetel manual:
+#: orang yang meng-clone repo ini harus bisa menjalankan `docker compose up`
+#: tanpa membaca dokumentasi lebih dulu, dan satu env var yang lupa disetel
+#: adalah selisih antara demo yang jalan dan demo yang mati.
+DEFAULT_CHECKPOINT_URL = (
+    "https://github.com/AIC-SahabatOllie/audiax_model/releases/download/"
+    "v0.1.0-weights/beats_finetuned.pt"
+)
+
+#: Timpa default di atas kalau checkpoint di-host di tempat lain (mirror
+#: internal, Hugging Face, atau hasil training sendiri):
+#:     export AUDIAX_CHECKPOINT_URL=https://.../beats_finetuned.pt
 ENV_CHECKPOINT_URL = "AUDIAX_CHECKPOINT_URL"
+
+#: sha256 aset di rilis v0.1.0-weights. Ukuran minimum saja tidak cukup: file
+#: yang terpotong di 60% tetap lolos ambang 50 MB tapi gagal saat torch.load,
+#: dan pesan errornya tidak akan menyebut-nyebut unduhan.
+EXPECTED_CHECKPOINT_SHA256 = "e3feaefb3099882b7cc234799ee37455f677efe70b2df7525362ec6b5f8ae509"
 
 #: Ukuran minimum yang masuk akal untuk checkpoint BEATs. Unduhan yang terputus
 #: atau halaman error HTML yang tersimpan sebagai .pt akan jauh di bawah ini,
@@ -49,24 +65,79 @@ ENV_CHECKPOINT_URL = "AUDIAX_CHECKPOINT_URL"
 MIN_CHECKPOINT_BYTES = 50 * 1024 * 1024
 
 
-def _download(url: str, dest: Path) -> bool:
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+#: Berapa kali unduhan diulang sebelum menyerah. Bukan kemewahan: checkpoint
+#: 345 MB lewat koneksi rumahan bisa berjalan puluhan menit, dan satu gangguan
+#: sesaat di tengahnya pernah membuat seluruh unduhan mengulang dari nol lalu
+#: skripnya menyerah. Di lokasi penjurian, itu berarti demo mati karena WiFi.
+DOWNLOAD_ATTEMPTS = 4
+
+
+def _download(url: str, dest: Path, attempts: int = DOWNLOAD_ATTEMPTS) -> bool:
+    """Unduh url ke dest, melanjutkan dari file .part kalau ada.
+
+    Melanjutkan, bukan mengulang: byte yang sudah turun dipertahankan dan
+    permintaan berikutnya memakai header ``Range``. Untuk file 345 MB, selisih
+    antara "lanjut dari 80%" dan "ulang dari 0%" adalah selisih antara demo yang
+    jalan dan demo yang tidak.
+
+    URL asli selalu yang diminta ulang, bukan URL hasil redirect. Aset GitHub
+    Release diarahkan ke CDN dengan tanda tangan yang kedaluwarsa; menyimpan
+    URL redirect lalu memakainya lagi akan gagal justru pada unduhan panjang
+    yang paling butuh diulang.
+    """
     tmp = dest.with_suffix(dest.suffix + ".part")
-    try:
-        with urllib.request.urlopen(url, timeout=120) as resp, tmp.open("wb") as out:
-            total = 0
-            while chunk := resp.read(1024 * 256):
-                out.write(chunk)
-                total += len(chunk)
-                if total % (32 * 1024 * 1024) < 1024 * 256:
-                    print(f"      {total / 1024 / 1024:.0f} MB...")
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        tmp.unlink(missing_ok=True)
-        print(f"    [GAGAL] {exc}", file=sys.stderr)
-        return False
-    # Rename hanya setelah unduhan utuh, supaya file separuh tidak pernah
-    # terlihat seperti aset yang valid oleh proses lain.
-    tmp.replace(dest)
-    return True
+
+    for attempt in range(1, attempts + 1):
+        resume_from = tmp.stat().st_size if tmp.exists() else 0
+        req = urllib.request.Request(url)
+        if resume_from:
+            req.add_header("Range", f"bytes={resume_from}-")
+            print(f"      melanjutkan dari {resume_from / 1024 / 1024:.0f} MB")
+
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                # Server boleh mengabaikan Range dan mengirim 200 dari awal.
+                # Kalau itu terjadi, menimpa dari nol adalah satu-satunya yang
+                # benar -- menambahkan ke .part yang sudah ada akan menghasilkan
+                # file rusak yang ukurannya justru terlihat wajar.
+                restarted = resume_from and resp.status != 206
+                if restarted:
+                    resume_from = 0
+                mode = "ab" if resume_from else "wb"
+
+                with tmp.open(mode) as out:
+                    total = resume_from
+                    last_report = total
+                    while chunk := resp.read(1024 * 256):
+                        out.write(chunk)
+                        total += len(chunk)
+                        if total - last_report >= 32 * 1024 * 1024:
+                            print(f"      {total / 1024 / 1024:.0f} MB...")
+                            last_report = total
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            # .part sengaja TIDAK dihapus -- itulah yang membuat percobaan
+            # berikutnya bisa melanjutkan alih-alih mengulang.
+            print(f"    [percobaan {attempt}/{attempts} gagal] {exc}", file=sys.stderr)
+            if attempt == attempts:
+                print(f"    [GAGAL] menyerah setelah {attempts} percobaan", file=sys.stderr)
+                return False
+            time.sleep(2 * attempt)
+            continue
+
+        # Rename hanya setelah unduhan utuh, supaya file separuh tidak pernah
+        # terlihat seperti aset yang valid oleh proses lain.
+        tmp.replace(dest)
+        return True
+
+    return False
 
 
 def setup_beats_vendor() -> List[str]:
@@ -107,18 +178,7 @@ def setup_checkpoint() -> List[str]:
         print(f"  - [ADA]  {found.relative_to(REPO_ROOT)} ({size_mb:.1f} MB)")
         return []
 
-    url = os.environ.get(ENV_CHECKPOINT_URL, "").strip()
-    if not url:
-        return [
-            "checkpoint BEATs belum ada dan "
-            + ENV_CHECKPOINT_URL
-            + " belum disetel.\n"
-            "      Setel ke URL rilis checkpoint tim, lalu jalankan ulang:\n"
-            "        export "
-            + ENV_CHECKPOINT_URL
-            + "=https://github.com/<org>/<repo>/releases/download/<tag>/beats_finetuned.pt\n"
-            "      Atau salin manual file .pt ke ai/weights/beats_finetuned.pt"
-        ]
+    url = os.environ.get(ENV_CHECKPOINT_URL, "").strip() or DEFAULT_CHECKPOINT_URL
 
     dest = WEIGHTS_DIR / "beats_finetuned.pt"
     print(f"  - [UNDUH] {url}")
@@ -132,6 +192,22 @@ def setup_checkpoint() -> List[str]:
             f"checkpoint hasil unduhan cuma {size / 1024 / 1024:.1f} MB — "
             "kemungkinan URL salah atau mengembalikan halaman error, bukan file bobot"
         ]
+
+    # Hash hanya diperiksa untuk URL default, karena hanya aset itu yang
+    # hash-nya kita ketahui. Mirror atau checkpoint hasil training sendiri
+    # tentu berbeda, dan menolaknya di sini akan salah.
+    if url == DEFAULT_CHECKPOINT_URL:
+        digest = _sha256(dest)
+        if digest != EXPECTED_CHECKPOINT_SHA256:
+            dest.unlink(missing_ok=True)
+            return [
+                "checkpoint terunduh utuh secara ukuran tapi sha256-nya tidak cocok.\n"
+                f"      diharapkan: {EXPECTED_CHECKPOINT_SHA256}\n"
+                f"      didapat   : {digest}\n"
+                "      File dihapus. Jalankan ulang; kalau tetap berbeda, aset di rilis "
+                "sudah berubah dan konstanta di skrip ini harus diperbarui."
+            ]
+        print("    [OK] sha256 cocok")
 
     print(f"    [OK] {size / 1024 / 1024:.1f} MB")
     return []
