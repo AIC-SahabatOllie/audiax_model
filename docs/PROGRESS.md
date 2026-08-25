@@ -12,7 +12,7 @@
 | `service/` (FastAPI) | ✅ `/healthz`, `/v1/calibrate`, `/v1/inspect` |
 | `tests/` | ✅ boundary, pipeline, service routes |
 | Docker / demo | ✅ **Terbukti ujung-ke-ujung** (lihat §2) |
-| Distribusi checkpoint | ❌ **Belum** — satu-satunya penghalang demo tersisa |
+| Distribusi checkpoint | ✅ **Selesai** — rilis `v0.1.0-weights`, terbukti terunduh (§2) |
 | Lapisan advisory (Teknisi Saku) | ✅ Gerbang lulus, model terlatih, artefak GGUF 249 MB |
 | **Angka AUC dari notebook** | ✅ **`experiments/results.md` sudah ada** (lihat §4) |
 | **Konsolidasi notebook** | ✅ **Satu notebook berlaku, lima terarsip** (lihat §4) |
@@ -50,12 +50,30 @@ POST /v1/calibrate     -> HTTP 200 dalam 3,2 s
 4. **`download_assets.py` cuma memeriksa lalu exit 0.** Kini benar-benar
    mengunduh, memvalidasi ukuran minimum, dan exit non-zero kalau kurang.
 
-### ⚠️ Sisa penghalang demo — hanya tim yang bisa
+### Distribusi checkpoint — SELESAI
 
-`beats_finetuned.pt` (345 MB) belum di-host di mana pun. Orang yang meng-clone
-repo tidak punya cara mendapatkannya. **Unggah ke GitHub Release**, lalu
-`AUDIAX_CHECKPOINT_URL` di README berfungsi. Sampai itu dikerjakan, jalur "juri
-clone lalu jalankan" masih putus. Semua sisi kode sudah siap menerimanya.
+`beats_finetuned.pt` di-host sebagai aset rilis
+[`v0.1.0-weights`](https://github.com/AIC-SahabatOllie/audiax_model/releases/tag/v0.1.0-weights).
+URL-nya jadi **default** di `scripts/download_assets.py`, bukan env var yang
+wajib disetel — orang yang meng-clone bisa langsung jalan tanpa membaca
+dokumentasi. `AUDIAX_CHECKPOINT_URL` tetap ada untuk menimpanya.
+
+Diverifikasi, bukan diasumsikan:
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Repo publik (aset privat butuh token) | ✅ `visibility: PUBLIC` |
+| `curl` tanpa autentikasi | ✅ HTTP 200, byte awal `PK\x03\x04` = format `torch.save` |
+| Jalur bersih: `ai/weights` kosong, tanpa env var | ✅ 345 MB terunduh, sha256 cocok, exit 0 |
+| Hasil unduh vs file asli | ✅ hash identik |
+
+**Pengunduh diperkeras setelah uji pertama gagal.** `WinError 10060` — gangguan
+sesaat (DNS normal, IPv4 tersambung 0,16 dtk, `urllib` langsung berhasil saat
+diulang). Tapi kegagalan itu menyingkap masalah nyata: `_download()` menghapus
+`.part` lalu menyerah, jadi satu kedipan WiFi di menit ke-30 membuang seluruh
+345 MB. Sekarang ia **melanjutkan** dengan header `Range`, 4 percobaan, plus
+verifikasi sha256 — karena file yang terpotong di 60% tetap lolos ambang 50 MB
+lalu gagal di `torch.load` dengan pesan yang tidak menyebut-nyebut unduhan.
 
 ---
 
@@ -196,14 +214,13 @@ Seluruh suite backend hijau: `go test ./...` → 5 paket ok.
 
 | # | Masalah | Dampak |
 |---|---|---|
-| 1 | Checkpoint belum di-host | **Demo gagal di mesin juri.** Prioritas tertinggi, hanya tim yang bisa |
-| 2 | Kontradiksi compliance antar-repo | Lihat §7 — perlu keputusan tim |
-| 3 | Recall unit baru 7,3% / 1,3% | Batasan produk nyata, harus tercermin di klaim |
-| 4 | T5 "adu adil" binary vs MAC belum dijalankan | Tabel `results.md` §4 belum sah |
-| 5 | Bagian 29b notebook belum pernah dijalankan | 8 kombinasi jalur data belum terukur |
-| 6 | `Dataset/` belum diverifikasi = MIMII −6 dB fan | Perbandingan ke anchor resmi masih indikatif |
-| 7 | Kuota Gemini tier gratis habis harian | Korpus berhenti di 657; cukup untuk gerbang |
-| 8 | `internal/config/config.go` di repo backend | Perubahan dari sesi lain, **tidak** saya commit — `godotenv.Load` sekarang menelan semua error, termasuk `.env` yang rusak. Perlu ditinjau pemiliknya |
+| 1 | Kontradiksi compliance antar-repo | Lihat §7 — perlu keputusan tim |
+| 2 | Recall unit baru 7,3% / 1,3% | Batasan produk nyata, harus tercermin di klaim |
+| 3 | T5 "adu adil" binary vs MAC belum dijalankan | Tabel `results.md` §4 belum sah |
+| 4 | Bagian 29b notebook belum pernah dijalankan | 8 kombinasi jalur data belum terukur |
+| 5 | `Dataset/` belum diverifikasi = MIMII −6 dB fan | Perbandingan ke anchor resmi masih indikatif |
+| 6 | Kuota Gemini tier gratis habis harian | Korpus berhenti di 657; cukup untuk gerbang |
+| 7 | `internal/config/config.go` di repo backend | Perubahan dari sesi lain, **tidak** saya commit — `godotenv.Load` sekarang menelan semua error, termasuk `.env` yang rusak. Perlu ditinjau pemiliknya |
 
 ---
 
@@ -248,6 +265,9 @@ experiments/advisory/gen_golden.py  BARU — regenerasi golden file, jangan dike
 CLAUDE.md                           Keputusan Desain #1 -> selesai; #4 diberi angka ablasi;
                                     mode dataset "custom" -> "local"; catatan folder archive
 docs/PROGRESS.md                    file ini
+README.md                           URL rilis asli menggantikan placeholder
+scripts/download_assets.py          URL rilis jadi default; unduhan bisa dilanjutkan
+                                    (Range, 4 percobaan) + verifikasi sha256
 ```
 
 ### Repo `audiax_backend`
@@ -266,11 +286,10 @@ Tidak disentuh: `internal/config/config.go`, `.air.toml` — bukan pekerjaan ses
 
 ## 10. Langkah berikutnya
 
-1. **Unggah checkpoint ke GitHub Release** ← penghalang demo, hanya tim yang bisa
-2. **Putuskan kontradiksi compliance** (§7) — ini bab penilaian, bukan detail teknis
-3. Sesuaikan klaim produk dengan recall unit baru (§4) sebelum ditulis di proposal
-4. Kalau ada GPU + waktu: jalankan T5 dan Bagian 29b, lalu perbarui `results.md`
-5. Opsional: lanjutkan training LoRA dari checkpoint-60 (resume otomatis sudah ada).
+1. **Putuskan kontradiksi compliance** (§7) — ini bab penilaian, bukan detail teknis
+2. Sesuaikan klaim produk dengan recall unit baru (§4) sebelum ditulis di proposal
+3. Kalau ada GPU + waktu: jalankan T5 dan Bagian 29b, lalu perbarui `results.md`
+4. Opsional: lanjutkan training LoRA dari checkpoint-60 (resume otomatis sudah ada).
    Kalau dilanjutkan, tabel hasil dan artefak `dist/` **harus** diregenerasi
    bersamaan supaya angka yang dipublikasikan tetap cocok dengan model yang dikirim
-6. **Cabut dua Gemini API key** yang pernah ditempel di chat, setelah lomba selesai
+5. **Cabut dua Gemini API key** yang pernah ditempel di chat, setelah lomba selesai
