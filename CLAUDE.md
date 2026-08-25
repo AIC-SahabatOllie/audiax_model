@@ -48,10 +48,13 @@ Kode produksi (`ai/`) sengaja jauh lebih ringkas karena itu yang harus lolos
 batasan rulebook (statis, sinkron, tanpa auto-tuning — lihat bawah).
 
 Notebook mendukung **dua mode dataset** (`DATASET_MODE` di Bagian 4):
-`"mimii"` (dataset publik, multi-unit, bisa dibandingkan ke baseline resmi
-Hitachi) dan `"custom"` (dataset lapangan/Anda sendiri, struktur datar
-`<root>/{normal,abnormal}/*.wav`, satu unit — held-out di mode ini mengukur
-generalisasi yang **lebih lemah**, lihat catatan jujur di notebook §9).
+`"mimii"` (mengunduh `-6_dB_fan` publik, bisa dibandingkan langsung ke baseline
+resmi Hitachi) dan `"local"` (salinan multi-unit di `<root>/id_XX/{normal,abnormal}/*.wav`).
+Angka di `experiments/results.md` dihasilkan mode `"local"` — perbandingan ke
+anchor resmi karenanya masih **indikatif**, lihat caveat di `results.md` §2.
+
+Lima notebook pendahulu ada di `experiments/archive/` — silsilahnya di
+`experiments/archive/README.md`. Angkanya **tidak boleh** dikutip.
 
 ---
 
@@ -71,10 +74,10 @@ Repo ini disubmit untuk penilaian teknis dengan batasan eksplisit dari dokumen "
 
 Butir-butir berikut adalah hasil analisis/koreksi eksplisit di sesi-sesi sebelumnya dan **menentukan validitas metodologis proposal**. Kalau menemukan kode yang bertentangan dengan salah satu ini, itu kemungkinan besar **regresi**, bukan pembaruan yang disengaja — cek `docs/PROGRESS.md` dulu sebelum mengubah.
 
-1. **⚠️ BELUM SELESAI — Objective adapter seharusnya Machine Attribute Classification (MAC), BUKAN binary classifier normal/abnormal.** `experiments/audiax_pipeline.ipynb` **masih** melatih via Focal Loss pada label normal/abnormal — ini bertentangan dengan premis *training-free ASD* yang jadi dasar proposal (lihat [17] Fang dkk. 2025, dan Bab 1.6 proposal). Label anomali seharusnya **hanya** dipakai untuk menghitung AUC saat evaluasi, **tidak pernah** untuk training adapter. **Ini pekerjaan lanjutan yang belum dikerjakan** — jangan asumsikan checkpoint hasil notebook saat ini sudah memenuhi syarat MAC.
+1. **✅ SELESAI — Objective adapter adalah Machine Attribute Classification (MAC), BUKAN binary classifier normal/abnormal.** `experiments/audiax_pipeline.ipynb` melatih adapter atas label `machine_id` dengan head ArcFace (`scale=16.0`, `margin=0.1`); klip abnormal sengaja tidak dipakai untuk training adapter sama sekali. Label anomali **hanya** masuk saat menghitung AUC di evaluasi. Ini memenuhi premis *training-free ASD* (lihat [17] Fang dkk. 2025, dan Bab 1.6 proposal). Varian Focal Loss biner yang lama diarsipkan di `experiments/archive/` dan **tidak boleh** dikutip sebagai hasil sistem walau angka held-out-nya kebetulan lebih tinggi — lihat `experiments/results.md` §4. Skala dan margin ArcFace **tetap** (bukan AdaCos) supaya tidak ada celah argumen soal auto-tuning.
 2. **`holdout_machine_id = "id_04"`, bukan `id_06`** (mode dataset `"mimii"`). `id_06` adalah unit **termudah** di baseline resmi Hitachi (AUC 0.982 @ 0dB) — memakainya sebagai held-out membuat angka generalisasi optimistis dan mudah dipatahkan juri. `id_04` adalah unit **tersulit** (0.5715 @ −6dB).
 3. **Anchor baseline AUC ≈ 0.60**, bukan 0.658. Angka yang benar adalah rata-rata baseline resmi `MIMII-hitachi/mimii_baseline` (DAE) untuk kategori **fan @ −6dB** (id_00=0.5757, id_02=0.6401, id_04=0.5715). Anchor ini **hanya berlaku untuk mode dataset `"mimii"`** — jangan dibandingkan langsung ke hasil mode `"custom"`.
-4. **`enable_denoise` default `False`** di `ai/config.py`. HPSS (`ai/preprocess.py::hpss_denoise`) sudah diuji numerik (SNR membaik, harmonik diagnostik dipertahankan >95% pada sinyal sintetis) tapi **belum pernah** diuji pada data MIMII atau rekaman blower asli. Jangan ubah ke `True` sebagai default tanpa angka ablasi nyata dari Bagian 29 `experiments/audiax_pipeline.ipynb`.
+4. **`enable_denoise` default `False`** di `ai/config.py`. Ablasi nyata Bagian 29 sudah ada (`experiments/results.md` §5): pada id_04, AUC 0,4907 → 0,5282 (**+0,0375**) tapi pAUC hanya 0,4931 → 0,4933 (**+0,0002**). Perbaikannya terjadi di wilayah FPR tinggi yang tidak dipakai ambang produksi, diukur pada satu unit tanpa ulangan seed, dan HPSS menambah biaya komputasi di ponsel. **Default tetap `False`.** Syarat untuk mengubahnya: ulangi di 4 unit × ≥3 seed, dan pAUC harus ikut naik — bukan cuma AUC.
 5. **4 backend scoring (cosine, Mahalanobis+shrinkage, kNN density-normalized, PCA residual) difusi dengan MINIMUM** — bukan rata-rata, bukan voting, bukan pemilihan backend "terbaik" otomatis. Minimum bersifat konservatif (semua backend harus sepakat baru dianggap anomali), sesuai temuan [15] Zhou & Wang (2026).
 6. **3 repo, 3 deployment terpisah** (FE / BE / AI — repo ini). Konsekuensinya: `ai/` = pure Python library (nol dependensi web, ditegakkan `tests/test_boundary.py`), `service/` = lapisan HTTP tipis **di atas** `ai/`. Jangan menggabungkan lagi jadi satu proses/image kecuali ada keputusan eksplisit untuk kembali ke arsitektur monorepo.
 7. **Bukan 3 model penuh terpisah** (gate suara-mesin / normalizer / predictor). Layer "gate suara-mesin vs bukan" bersifat **opsional**, memakai embedding BEATs yang sama (linear probe ringan), dan **baru** diaktifkan kalau data audio non-mesin sudah tersedia.
