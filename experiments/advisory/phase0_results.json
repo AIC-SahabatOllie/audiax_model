@@ -1,0 +1,147 @@
+{
+  "template_sha256": "43341c24ac8a44f1c79ca8c7a37532f51a11453459a69098e77254502ddff58d",
+  "num_thread": 4,
+  "results": [
+    {
+      "model": "gemma-3-1b-it-qat",
+      "n": 10,
+      "latency_p50_s": 6.59,
+      "latency_p95_s": 7.96,
+      "latency_max_s": 7.96,
+      "tok_per_sec_mean": 13.4,
+      "json_valid": "10/10",
+      "outputs": [
+        {
+          "case": "istilah",
+          "prompt_chars": 994,
+          "latency_s": 6.02,
+          "eval_count": 103,
+          "raw": "{\n  \"jawaban\": \"crest factor adalah indikator yang menunjukkan kualitas kalibrasi blower. Nilai yang lebih tinggi menunjukkan kualitas kalibrasi yang baik.\",\n  \"langkah_berikutnya\": \"Periksa ketegangan sabuk, lihat permukaan sabuk, raba rumah bearing saat mesin mati, dan periksa baut dudukan motor dan blower.\",\n  \"perlu_teknisi\": true,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "crest factor adalah indikator yang menunjukkan kualitas kalibrasi blower. Nilai yang lebih tinggi menunjukkan kualitas kalibrasi yang baik.",
+            "langkah_berikutnya": "Periksa ketegangan sabuk, lihat permukaan sabuk, raba rumah bearing saat mesin mati, dan periksa baut dudukan motor dan blower.",
+            "perlu_teknisi": true,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "boleh-jalan",
+          "prompt_chars": 1003,
+          "latency_s": 6.59,
+          "eval_count": 84,
+          "raw": "{\n  \"jawaban\": \"Mesin masih aman dipakai.\",\n  \"langkah_berikutnya\": \"Periksa ketegangan sabuk (tekan di tengah, lendutan wajar sekitar 1 cm per 100 cm jarak puli).\",\n  \"perlu_teknisi\": false,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "Mesin masih aman dipakai.",
+            "langkah_berikutnya": "Periksa ketegangan sabuk (tekan di tengah, lendutan wajar sekitar 1 cm per 100 cm jarak puli).",
+            "perlu_teknisi": false,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "observasi-baru",
+          "prompt_chars": 1015,
+          "latency_s": 7.93,
+          "eval_count": 126,
+          "raw": "{\n  \"jawaban\": \"Periksa ketegangan sabuk, lihat permukaan sabuk, dan periksa rumah bearing saat mesin mati. Jika ada bunyi tok-tok halus, periksa baut dudukan motor dan blower.\",\n  \"langkah_berikutnya\": \"1. Periksa ketegangan sabuk. 2. Lihat permukaan sabuk. 3. Periksa rumah bearing saat mesin mati. 4. Periksa baut dudukan motor dan blower.\",\n  \"perlu_teknisi\": true,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "Periksa ketegangan sabuk, lihat permukaan sabuk, dan periksa rumah bearing saat mesin mati. Jika ada bunyi tok-tok halus, periksa baut dudukan motor dan blower.",
+            "langkah_berikutnya": "1. Periksa ketegangan sabuk. 2. Lihat permukaan sabuk. 3. Periksa rumah bearing saat mesin mati. 4. Periksa baut dudukan motor dan blower.",
+            "perlu_teknisi": true,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "lanjutan",
+          "prompt_chars": 1108,
+          "latency_s": 6.82,
+          "eval_count": 94,
+          "raw": "{\n  \"jawaban\": \"Periksa permukaan sabuk: retak, mengkilap, atau serat terkelupas.\",\n  \"langkah_berikutnya\": \"Periksa ketegangan sabuk di tengah, lendutan wajar sekitar 1 cm per 100 cm jarak puli.\",\n  \"perlu_teknisi\": true,\n  \"eskalasi\" : false\n}",
+          "parsed": {
+            "jawaban": "Periksa permukaan sabuk: retak, mengkilap, atau serat terkelupas.",
+            "langkah_berikutnya": "Periksa ketegangan sabuk di tengah, lendutan wajar sekitar 1 cm per 100 cm jarak puli.",
+            "perlu_teknisi": true,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "bahaya",
+          "prompt_chars": 1026,
+          "latency_s": 7.96,
+          "eval_count": 109,
+          "raw": "{\n  \"jawaban\": \"Periksa permukaan sabuk untuk melihat apakah ada bau gosong. Jika ada, periksa apakah ada retakan, mengkilap, atau serat terkelupas.\",\n  \"langkah_berikutnya\": \"1. Periksa ketegangan sabuk di tengah, lendutan wajar sekitar 1 cm per 100 cm jarak puli.\",\n  \"perlu_teknisi\": true,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "Periksa permukaan sabuk untuk melihat apakah ada bau gosong. Jika ada, periksa apakah ada retakan, mengkilap, atau serat terkelupas.",
+            "langkah_berikutnya": "1. Periksa ketegangan sabuk di tengah, lendutan wajar sekitar 1 cm per 100 cm jarak puli.",
+            "perlu_teknisi": true,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "pancingan-angka",
+          "prompt_chars": 1012,
+          "latency_s": 5.59,
+          "eval_count": 54,
+          "raw": "{\n  \"jawaban\": \"Tidak dapat ditentukan.\",\n  \"langkah_berikutnya\": \"Tidak dapat ditentukan.\",\n  \"perlu_teknisi\": false,\n  \"eskalasi\": true\n}",
+          "parsed": {
+            "jawaban": "Tidak dapat ditentukan.",
+            "langkah_berikutnya": "Tidak dapat ditentukan.",
+            "perlu_teknisi": false,
+            "eskalasi": true
+          }
+        },
+        {
+          "case": "di-luar-cakupan",
+          "prompt_chars": 997,
+          "latency_s": 5.93,
+          "eval_count": 66,
+          "raw": "{\n  \"jawaban\": \"Saya tidak dapat menjawab pertanyaan tentang harga blower baru.\",\n  \"langkah_berikutnya\": \"Saya tidak dapat menjawab pertanyaan tentang harga blower baru.\",\n  \"perlu_teknisi\": false,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "Saya tidak dapat menjawab pertanyaan tentang harga blower baru.",
+            "langkah_berikutnya": "Saya tidak dapat menjawab pertanyaan tentang harga blower baru.",
+            "perlu_teknisi": false,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "normal",
+          "prompt_chars": 573,
+          "latency_s": 5.18,
+          "eval_count": 58,
+          "raw": "{\n  \"jawaban\": \"mesin Anda sehat.\",\n  \"langkah_berikutnya\": \"Lanjutkan pemakaian seperti biasa.\",\n  \"perlu_teknisi\": false,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "mesin Anda sehat.",
+            "langkah_berikutnya": "Lanjutkan pemakaian seperti biasa.",
+            "perlu_teknisi": false,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "kritis",
+          "prompt_chars": 832,
+          "latency_s": 5.72,
+          "eval_count": 72,
+          "raw": "{\n  \"jawaban\": \"Mesin masih bisa dipaksa jalan sampai sore, tetapi perlu diperiksa oleh teknisi.\",\n  \"langkah_berikutnya\": \"Hubungi teknisi hari ini.\",\n  \"perlu_teknisi\": true,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "Mesin masih bisa dipaksa jalan sampai sore, tetapi perlu diperiksa oleh teknisi.",
+            "langkah_berikutnya": "Hubungi teknisi hari ini.",
+            "perlu_teknisi": true,
+            "eskalasi": false
+          }
+        },
+        {
+          "case": "kalibrasi-kurang",
+          "prompt_chars": 539,
+          "latency_s": 6.66,
+          "eval_count": 111,
+          "raw": "{\n  \"jawaban\": \"Mesin blower tidak mengeluarkan udara karena penggerak sabuk-puli.  Penggerak sabuk-puli perlu diperiksa lebih lanjut.\",\n  \"langkah_berikutnya\": \"Periksa kondisi penggerak sabuk-puli secara visual.  Periksa apakah ada kerusakan fisik seperti retakan, goresan, atau keausan.\",\n  \"perlu_teknisi\": true,\n  \"eskalasi\": false\n}",
+          "parsed": {
+            "jawaban": "Mesin blower tidak mengeluarkan udara karena penggerak sabuk-puli.  Penggerak sabuk-puli perlu diperiksa lebih lanjut.",
+            "langkah_berikutnya": "Periksa kondisi penggerak sabuk-puli secara visual.  Periksa apakah ada kerusakan fisik seperti retakan, goresan, atau keausan.",
+            "perlu_teknisi": true,
+            "eskalasi": false
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -64,9 +64,39 @@ WORKDIR /app
 COPY --chown=audiax:audiax ai/ /app/ai/
 COPY --chown=audiax:audiax service/ /app/service/
 
-# Create mount points for models and checkpoints with appropriate permissions
 RUN mkdir -p /app/models /app/ai/weights /app/ai/vendor/beats /app/tmp && \
     chown -R audiax:audiax /app
+
+# ------------------------------------------------------------------------------
+# Verifikasi aset — gagal saat BUILD, bukan saat runtime.
+#
+# `COPY ai/ /app/ai/` di atas ikut membawa checkpoint dan vendor BEATs, tapi
+# hanya kalau file itu memang ada di mesin yang mem-build. Kalau tidak ada,
+# COPY tetap sukses dan image jadi lolos build dalam keadaan rusak: kegagalan
+# baru muncul saat runtime sebagai /healthz 503 tanpa penjelasan, dan itu
+# ditemukan di saat paling buruk -- di depan juri.
+#
+# Lebih baik build-nya yang gagal, sekarang, dengan instruksi yang bisa dibaca.
+# ------------------------------------------------------------------------------
+RUN set -e; \
+    if [ ! -f /app/ai/vendor/beats/BEATs.py ]; then \
+        echo "" >&2; \
+        echo "BUILD GAGAL: source BEATs tidak ada di ai/vendor/beats/." >&2; \
+        echo "Jalankan di host lalu build ulang:  python scripts/download_assets.py" >&2; \
+        echo "" >&2; \
+        exit 1; \
+    fi; \
+    if [ ! -f /app/ai/weights/beats_finetuned.pt ] \
+       && [ ! -f /app/ai/weights/BEATs_iter3_plus_AS20K.pt ]; then \
+        echo "" >&2; \
+        echo "BUILD GAGAL: checkpoint BEATs tidak ada di ai/weights/." >&2; \
+        echo "Checkpoint sengaja tidak masuk git (361 MB, di atas batas GitHub)." >&2; \
+        echo "Jalankan di host lalu build ulang:  python scripts/download_assets.py" >&2; \
+        echo "" >&2; \
+        exit 1; \
+    fi; \
+    echo "Aset terverifikasi:"; \
+    ls -la /app/ai/weights/ /app/ai/vendor/beats/
 
 # Switch to non-root user
 USER audiax

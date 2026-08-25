@@ -1,0 +1,16 @@
+# Override khusus pengembangan.
+#
+# Mengembalikan volume mount supaya checkpoint atau vendor source bisa diganti
+# tanpa rebuild image -- berguna saat mengadu beberapa checkpoint hasil training.
+#
+# JANGAN dipakai untuk demo atau penjurian: mount ini menutupi isi image, jadi
+# kalau folder host kosong, service gagal warm-up dan /healthz balas 503.
+#
+# Pakai:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  audiax-ai:
+    volumes:
+      - ./models:/app/models:ro
+      - ./ai/weights:/app/ai/weights:ro
+      - ./ai/vendor:/app/ai/vendor:ro

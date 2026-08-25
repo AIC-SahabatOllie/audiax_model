@@ -1,12 +1,30 @@
-/docs
 /Dataset
-/models
 /third_party
 
+# Checkpoint model. Terlalu besar untuk git (361 MB; GitHub menolak >100 MB
+# tanpa LFS). Diperoleh lewat `python scripts/download_assets.py`, lalu ikut
+# ter-bake ke image Docker saat build -- lihat README.
 *.pt
-*.md
+
+# Artefak training lapisan advisory: bobot, checkpoint, dan cache model dasar.
+# Semuanya bisa dihasilkan ulang dari corpus/ + train_lora.py, dan ukurannya
+# ratusan MB. Yang MASUK repo adalah korpus dan skripnya, bukan hasilnya.
+experiments/advisory/runs/
+experiments/advisory/adapter/
+experiments/advisory/merged*/
+experiments/advisory/dist/
+experiments/advisory/eval_results.json
+experiments/advisory/*.log
+.hf_cache/
+*.gguf
+*.safetensors
 
 __pycache__/
 *.pyc
 .pytest_cache/
 /tests/__pycache__
+
+# CATATAN: `*.md` dan `/docs` PERNAH ada di file ini dan menyebabkan seluruh
+# dokumentasi diabaikan diam-diam -- termasuk docs/PROGRESS.md dan
+# docs/model_implementation.md yang diwajibkan CLAUDE.md. Jangan tambahkan
+# kembali. Dokumentasi adalah deliverable yang dinilai.
